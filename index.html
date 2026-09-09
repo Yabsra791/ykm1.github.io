@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yabsra Molla — Data Center Technician</title>
+<meta name="description" content="Data center technician. Operations, hardware, Linux. Quincy, WA.">
+
+
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --chassis:#131920;
+  --rail:#1B232C;
+  --edge:#2C3742;
+  --steel:#93A1AE;
+  --label:#E9EEF3;
+  --copper:#C87F4C;
+  --intake:#6C9CBE;
+  --led:#5BC48A;
+  --measure:68ch;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{
+  margin:0;
+  background:var(--chassis);
+  color:var(--label);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:16px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+
+#airflow{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+
+/* perforated panel texture */
+body::before{
+  content:"";position:fixed;inset:0;z-index:1;pointer-events:none;
+  background-image:radial-gradient(circle at 1px 1px, rgba(147,161,174,.055) 1px, transparent 0);
+  background-size:7px 7px;
+}
+/* cold aisle above, hot aisle below */
+body::after{
+  content:"";position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(180deg,
+    rgba(108,156,190,.13) 0%,
+    rgba(108,156,190,.02) 32%,
+    rgba(0,0,0,0) 62%,
+    rgba(200,127,76,.10) 100%);
+}
+
+.rack{
+  position:relative;z-index:2;
+  max-width:960px;margin:0 auto;padding:0 20px 96px;
+  display:grid;grid-template-columns:112px 1fr;column-gap:34px;
+}
+
+/* ================= rack elevation navigation ================= */
+.railwrap{position:relative}
+.rail{position:sticky;top:44px;padding:14px 12px 14px 0;border-right:1px solid var(--edge)}
+.rail h2{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:10px;letter-spacing:.09em;color:var(--steel);
+  opacity:.6;margin:0 0 10px;text-align:right;border:0;padding:0;font-weight:400;
+}
+.u{
+  display:grid;grid-template-columns:20px 1fr;align-items:center;
+  gap:7px;width:100%;background:none;border:0;padding:0;margin:0 0 1px;
+  cursor:default;font:inherit;text-align:left;
+  opacity:0;animation:rise .5s ease-out forwards;
+}
+button.u{cursor:pointer}
+.u .n{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:9.5px;color:var(--steel);opacity:.45;text-align:right}
+.u .bar{
+  height:7px;background:var(--rail);border:1px solid var(--edge);border-radius:1px;
+  transition:background .2s ease,border-color .2s ease,transform .2s ease;
+}
+.u.filled .bar{background:#25303A}
+button.u:hover .bar,button.u:focus-visible .bar{border-color:var(--copper);transform:translateX(2px)}
+.u.on .bar{background:var(--copper);border-color:var(--copper)}
+.u.on .n{color:var(--copper);opacity:1}
+.u:focus-visible{outline:2px solid var(--copper);outline-offset:2px}
+@keyframes rise{to{opacity:1}}
+
+.railkey{
+  margin-top:12px;text-align:right;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:9.5px;color:var(--copper);opacity:0;
+  transition:opacity .25s ease;min-height:14px;
+}
+.railkey.show{opacity:.85}
+
+/* ================= thermal gauge ================= */
+.thermal{
+  position:fixed;right:16px;top:50%;transform:translateY(-50%);
+  z-index:3;display:flex;align-items:center;gap:8px;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10px;
+}
+.thermal .track{
+  width:3px;height:180px;border-radius:2px;
+  background:linear-gradient(180deg,var(--intake),#4a5560 45%,var(--copper));
+  opacity:.5;position:relative;
+}
+.thermal .marker{
+  position:absolute;left:-3.5px;width:10px;height:2px;top:0;
+  background:var(--label);box-shadow:0 0 6px rgba(233,238,243,.5);
+  transition:top .12s linear;
+}
+.thermal .read{color:var(--steel);writing-mode:vertical-rl;letter-spacing:.08em}
+
+/* ================= content ================= */
+main{padding-top:44px;min-width:0}
+
+.faceplate{
+  border:1px solid var(--edge);border-left:3px solid var(--copper);
+  background:linear-gradient(180deg,rgba(27,35,44,.92),rgba(27,35,44,.55));
+  padding:28px 30px 24px;
+  opacity:0;transform:translateY(6px);
+  animation:rise .6s .1s ease-out forwards;
+}
+h1{font-size:clamp(28px,5.2vw,42px);font-weight:600;letter-spacing:-.018em;line-height:1.1;margin:0 0 6px}
+.role{font-size:clamp(15px,2.4vw,18px);color:var(--copper);font-weight:500;margin:0 0 20px}
+
+.status{
+  display:flex;flex-wrap:wrap;align-items:center;gap:9px;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:12.5px;color:var(--steel);
+  padding-top:16px;border-top:1px solid var(--edge);
+}
+.led{
+  width:7px;height:7px;border-radius:50%;background:var(--led);
+  box-shadow:0 0 7px rgba(91,196,138,.75);flex:none;
+  opacity:0;animation:boot .28s ease-out forwards;
+}
+.led.b{animation-delay:.55s}
+.led.c{animation-delay:.8s;background:var(--intake);box-shadow:0 0 7px rgba(108,156,190,.7)}
+@keyframes boot{to{opacity:1}}
+.status .sep{color:var(--edge)}
+
+.contact{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:18px;font-size:14.5px}
+.contact a{color:var(--label);text-decoration:none;border-bottom:1px solid rgba(200,127,76,.45);padding-bottom:1px}
+.contact a:hover,.contact a:focus-visible{color:var(--copper);border-bottom-color:var(--copper)}
+
+section{margin-top:40px;scroll-margin-top:44px}
+.sh{
+  font-size:13px;font-weight:600;letter-spacing:.02em;color:var(--steel);
+  margin:0 0 16px;padding-bottom:9px;border-bottom:1px solid var(--edge);
+  display:flex;align-items:center;gap:10px;
+}
+.sh .dot{
+  width:5px;height:5px;border-radius:50%;background:var(--edge);flex:none;
+  transition:background .35s ease,box-shadow .35s ease;
+}
+section.live .sh .dot{background:var(--led);box-shadow:0 0 6px rgba(91,196,138,.7)}
+.sh .tag{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:10.5px;color:var(--copper);opacity:.7;margin-left:auto}
+
+p{margin:0 0 14px;max-width:var(--measure)}
+.lede{color:#CBD5DE;max-width:var(--measure)}
+
+.spec{display:grid;grid-template-columns:190px 1fr;gap:11px 22px}
+.spec dt{font-size:14px;font-weight:500;color:var(--intake);padding-top:1px}
+.spec dd{margin:0;font-size:14.5px;color:#C3CDD7;max-width:var(--measure)}
+.spec dd .sub{color:var(--steel);font-style:italic}
+
+.post{border-left:2px solid var(--edge);padding-left:20px;margin-bottom:26px;transition:border-color .18s ease}
+.post:hover,.post:focus-within{border-left-color:var(--copper)}
+.post-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px}
+.org{font-size:17px;font-weight:600;margin:0}
+.org a{color:var(--label);text-decoration:none;border-bottom:1px solid rgba(200,127,76,.4);padding-bottom:1px}
+.org a:hover,.org a:focus-visible{color:var(--copper);border-bottom-color:var(--copper)}
+.when{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px;color:var(--steel);margin-left:auto}
+.post-role{font-size:14.5px;color:var(--copper);margin:3px 0 12px}
+ul{margin:0;padding:0;list-style:none}
+li{position:relative;padding-left:18px;margin-bottom:9px;font-size:14.5px;color:#C3CDD7;max-width:var(--measure)}
+li::before{content:"";position:absolute;left:0;top:.62em;width:6px;height:1px;background:var(--copper);opacity:.8}
+li b{color:var(--label);font-weight:600}
+.refnote{font-size:14px;color:var(--steel);margin:0 0 12px;max-width:var(--measure)}
+.reveal{
+  font:inherit;font-size:13px;
+  background:none;color:var(--copper);
+  border:1px solid var(--edge);border-radius:2px;
+  padding:6px 13px;cursor:pointer;
+  transition:border-color .18s ease,background .18s ease;
+}
+.reveal:hover,.reveal:focus-visible{border-color:var(--copper);background:rgba(200,127,76,.09)}
+.reveal:focus-visible{outline:2px solid var(--copper);outline-offset:2px}
+.refcontact{
+  margin-top:12px;display:flex;flex-wrap:wrap;gap:6px 22px;
+  font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:13px;
+}
+.refcontact a{color:var(--label);text-decoration:none;border-bottom:1px solid rgba(200,127,76,.45)}
+.refcontact a:hover,.refcontact a:focus-visible{color:var(--copper);border-bottom-color:var(--copper)}
+.certs li{margin-bottom:7px}
+
+footer{
+  margin-top:44px;padding-top:18px;border-top:1px solid var(--edge);
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:11.5px;color:var(--steel);opacity:.7;
+}
+a:focus-visible{outline:2px solid var(--copper);outline-offset:3px}
+
+@media (max-width:820px){ .thermal{display:none} }
+@media (max-width:680px){
+  .rack{grid-template-columns:1fr;column-gap:0;padding:0 18px 64px}
+  .railwrap{display:none}
+  main{padding-top:30px}
+  .spec{grid-template-columns:1fr;gap:3px 0}
+  .spec dt{padding-top:10px}
+  .when{margin-left:0;width:100%}
+  .faceplate{padding:22px 20px 20px}
+  #airflow{display:none}
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  #airflow{display:none}
+  .u,.faceplate{opacity:1;animation:none;transform:none}
+  .led{animation:none;opacity:1}
+  *{transition:none!important}
+}
+
+@media print{
+  #airflow,.railwrap,.thermal,footer{display:none}
+  body{background:#fff;color:#000;font-size:10.5pt}
+  body::before,body::after{display:none}
+  .rack{grid-template-columns:1fr;max-width:none;padding:0}
+  .faceplate{border:none;background:none;padding:0;opacity:1;animation:none}
+  h1{font-size:22pt}
+  .role,.spec dt,.post-role,.sh .tag{color:#000}
+  .sh{border-bottom:1px solid #000;color:#000}
+  .sh .dot,.reveal{display:none}
+  .refcontact{display:flex!important}
+  .refnote{color:#000}
+  .post{border-left:none;padding-left:0}
+  li::before{background:#000}
+  li,.spec dd,.lede{color:#000}
+  a{color:#000;border:none}
+}
+</style>
+</head>
+<body>
+
+<canvas id="airflow" aria-hidden="true"></canvas>
+
+<div class="thermal" aria-hidden="true">
+  <span class="read" id="temp">64&deg;F</span>
+  <div class="track"><span class="marker" id="marker"></span></div>
+</div>
+
+<div class="rack">
+
+  <nav class="railwrap" aria-label="Section navigation">
+    <div class="rail">
+      <h2>42U elevation</h2>
+      <div id="rail"></div>
+      <div class="railkey" id="railkey"></div>
+    </div>
+  </nav>
+
+  <main>
+
+    <div class="faceplate">
+      <!-- EDIT -->
+      <h1>Yabsra Molla</h1>
+      <p class="role">Data Center Technician</p>
+
+      <div class="status">
+        <span class="led"></span><span>Available now</span>
+        <span class="sep">|</span>
+        <!-- EDIT -->
+        <span class="led b"></span><span>Relocating to Quincy, WA</span>
+        <span class="sep">|</span>
+        <span class="led c"></span><span>24/7 shifts, on-call rotation</span>
+      </div>
+
+      <!-- EDIT: all four links -->
+      <div class="contact">
+        <a href="mailto:you@example.com">yabimolla29@gmail.com</a>
+        <a href="tel:+15550000000">(630) 362-7626</a>
+        <a href="https://github.com/handle">Git:Yabsra791</a>
+      </div>
+    </div>
+
+    <section id="summary" data-u="42-39" data-name="Summary">
+      <h2 class="sh"><span class="dot"></span>Summary<span class="tag">42U &ndash; 39U</span></h2>
+      <p class="lede">Operations technician and self-taught programmer with one year in Tesla's 24/7 parts
+      distribution center, promoted to Level II within six months and named Employee of the Month in
+      March 2026. Combines hands-on equipment work &mdash; assembly and disassembly of racking and storage
+      systems, fine-detail work with small components and cables, inventory ownership &mdash; with Python and
+      Linux command line experience and several self-built applications. Comfortable prioritizing under
+      pressure in a fast-paced environment, working from written procedures, and writing the documentation
+      others follow.</p>
+    </section>
+
+    <section id="skills" data-u="38-27" data-name="Technical skills">
+      <h2 class="sh"><span class="dot"></span>Technical skills<span class="tag">38U &ndash; 27U</span></h2>
+      <dl class="spec">
+        <dt>Scripting &amp; systems</dt>
+        <dd>Python and C++ (intermediate); Linux/Unix command line &mdash; shell navigation, file and
+        permission management, log inspection; Bash scripting <span class="sub">(self-study)</span>;
+        SQL/MySQL and relational data modeling; Git; AI-assisted development &mdash; prompt engineering,
+        structured JSON outputs, review and debugging of generated code</dd>
+
+        <dt>Hardware &amp; physical</dt>
+        <dd>Assembly, disassembly, and reconfiguration of racking and storage systems with hand drills,
+        socket and wrench sets, and cutting tools; fine-detail component handling; transporting and
+        positioning equipment to 50+ lbs; ladder work, confined and elevated access, extended standing;
+        ESD handling awareness</dd>
+
+        <dt>Operations &amp; support</dt>
+        <dd>Inventory ownership and location accuracy; equipment tracking through receive&ndash;store&ndash;stage&ndash;deploy;
+        enterprise work-order and asset systems (Tesla Warp ERP, TMS, Order Monitor), transferable to DCIM
+        and ticketing platforms; fault identification, escalation, and root-cause follow-through; procedure
+        execution and documentation</dd>
+
+        <dt>Data center</dt>
+        <dd><span class="sub">Self-study.</span> Server hardware and boot process (POST, BIOS/UEFI, BMC/IPMI,
+        out-of-band management), component identification and replacement; hot and cold aisle containment and
+        airflow; power distribution, PDUs, single- and three-phase basics; structured cabling, copper and
+        fiber media, optics form factors; networking fundamentals (OSI model, IP addressing, switching)</dd>
+
+        <dt>Safety</dt>
+        <dd>PPE, lockout/tagout, hazard communication, high-voltage battery handling; daily pre-use equipment
+        inspections; hazard identification and escalation; 5S; forklift (OSHA-certified), pallet jack</dd>
+      </dl>
+    </section>
+
+    <section id="experience" data-u="26-15" data-name="Experience">
+      <h2 class="sh"><span class="dot"></span>Experience<span class="tag">26U &ndash; 15U</span></h2>
+      <div class="post">
+        <div class="post-head">
+          <h3 class="org">Tesla, Inc.</h3>
+          <span class="when">Aug 2025 &ndash; Present</span>
+        </div>
+        <p class="post-role">Material Handler (Operations Tech), Level II &middot; Marysville Parts Distribution Center</p>
+        <ul>
+          <li><b>Promoted to Level II in six months</b> after learning Tesla's in-house Warp ERP and connected
+          systems well enough to run inbound and outbound operations independently; named Employee of the
+          Month, March 2026.</li>
+          <li><b>Equipment assembly and physical work.</b> Assembled, disassembled, and reconfigured warehouse
+          racking and storage systems with hand tools to support layout changes and volume surges, handling
+          components ranging from small parts to units over 50 lbs.</li>
+          <li><b>Inventory ownership.</b> Maintained inventory and location accuracy across part numbers
+          through the full receive&ndash;store&ndash;stage&ndash;ship cycle in Warp, TMS, and Order Monitor,
+          under daily deadlines in a 24/7 operation.</li>
+          <li><b>Fault identification and escalation.</b> Inspected incoming material and equipment for damage
+          and abnormal conditions; identified, segregated, and escalated nonconforming items.</li>
+          <li><b>Documentation and standards.</b> Executed detailed written procedures and applied consistent
+          labeling and staging standards so material stayed traceable and discoverable.</li>
+          <li><b>Prioritization and communication.</b> Coordinated daily with inbound, outbound, and
+          transportation teams to triage urgent and high-priority requests against shipping deadlines;
+          trained new material handlers on system and safety procedures.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="certs" data-u="14-11" data-name="Certifications">
+      <h2 class="sh"><span class="dot"></span>Certifications and training<span class="tag">14U &ndash; 11U</span></h2>
+      <ul class="certs">
+        <li>Forklift and Order Picker Operator Certification (OSHA 29 CFR 1910.178) &mdash; Tesla, Aug 2025</li>
+        <li>OSHA 10-Hour General Industry &mdash; Tesla, Aug 2025</li>
+        <li>Tesla Safety Training &mdash; PPE, lockout/tagout, hazard communication, high-voltage battery (HVB) handling</li>
+      </ul>
+    </section>
+
+    <section id="projects" data-u="10-7" data-name="Projects">
+      <h2 class="sh"><span class="dot"></span>Projects<span class="tag">10U &ndash; 07U</span></h2>
+
+      <div class="post">
+        <div class="post-head">
+          <!-- EDIT: repo link, or delete the <a> and keep the plain title -->
+          <h3 class="org"><a href="https://github.com/handle/football-sim">Football simulation with an African player roster</a></h3>
+          <span class="when">[Year]</span>
+        </div>
+        <!-- EDIT: engine or stack -->
+        <p class="post-role">Personal project &middot; [engine or stack]</p>
+        <ul>
+          <li>Built a football simulation featuring African players absent from commercial titles: a custom
+          player database with rated attributes and club and national-team metadata, and a match engine that
+          resolves outcomes from those ratings.</li>
+          <li>Designed the data model and match logic, then used AI-assisted development to draft components
+          and reviewed, debugged, and integrated the generated code.</li>
+        </ul>
+      </div>
+
+      <div class="post">
+        <div class="post-head">
+          <!-- EDIT -->
+          <h3 class="org"><a href="https://github.com/yabsra791">Budget tracker and task manager</a></h3>
+          <span class="when">[Year]</span>
+        </div>
+        <p class="post-role">Personal tools, in daily use</p>
+        <ul>
+          <li>Two small applications I built and still run: an expense tracker with categorized transactions,
+          recurring entries, and monthly rollups, and a task manager with statuses, due dates, and priorities.</li>
+          <li>Designed the data model and persistence layer for each, and iterated the interface through my own
+          daily use.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="study" data-u="6-4" data-name="Study in progress">
+      <h2 class="sh"><span class="dot"></span>Study in progress<span class="tag">06U &ndash; 04U</span></h2>
+      <div class="post">
+        <div class="post-head">
+          <h3 class="org">Data center hardware and Linux</h3>
+          <span class="when">May 2026 &ndash; Present</span>
+        </div>
+        <p class="post-role">Self-directed</p>
+        <ul>
+          <li>Server hardware and the boot process (POST, BIOS/UEFI, BMC/IPMI, out-of-band management),
+          component-level troubleshooting and replacement.</li>
+          <li>Hot and cold aisle containment and airflow, power distribution and PDUs, structured cabling and
+          optics types, networking fundamentals.</li>
+          <li>Linux administration and Bash scripting on the command line. CompTIA Server+ and Network+ scheduled.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="education" data-u="3-2" data-name="Education">
+      <h2 class="sh"><span class="dot"></span>Education<span class="tag">03U &ndash; 02U</span></h2>
+      <div class="post">
+        <div class="post-head">
+          <h3 class="org">Northwestern University, McCormick School of Engineering</h3>
+          <span class="when">Jan 2021 &ndash; Jan 2023</span>
+        </div>
+        <p class="post-role">Visiting Scholar &middot; Evanston, IL</p>
+        <ul><li>Coursework: linear algebra, general physics sequence.</li></ul>
+      </div>
+      <div class="post">
+        <div class="post-head">
+          <h3 class="org">St. Joseph High School</h3>
+          <span class="when">Jun 2017</span>
+        </div>
+        <p class="post-role">High school diploma with honors, second in class &middot; Adama, Ethiopia</p>
+        <ul><li>SAT 1360/1600 &mdash; Math 770, 99th percentile.</li></ul>
+      </div>
+    </section>
+
+
+    <section id="references" data-u="1-1" data-name="References">
+      <h2 class="sh"><span class="dot"></span>References<span class="tag">01U</span></h2>
+      <div class="post">
+        <div class="post-head">
+          <!-- EDIT: reference name -->
+          <h3 class="org">Young Kim</h3>
+        </div>
+        <!-- EDIT: their title -->
+        <p class="post-role">Supervisor &middot; Tesla, Marysville Parts Distribution Center &middot; Direct supervisor</p>
+        <p class="refnote">Available to speak to my work, reliability, and shift record.</p>
+        <button type="button" class="reveal" id="revealRef">Show contact details</button>
+        <div class="refcontact" id="refContact" hidden></div>
+        <noscript><p class="refnote">Contact details available on request.</p></noscript>
+      </div>
+    </section>
+
+    <!-- EDIT -->
+    <footer>Last updated September 2026 &nbsp;&middot;&nbsp; Built by hand</footer>
+
+  </main>
+</div>
+
+<script>
+(function(){
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var sections = Array.prototype.slice.call(document.querySelectorAll('section[data-u]'));
+
+  /* ---------- build the 42U elevation as navigation ---------- */
+  var railEl = document.getElementById('rail');
+  var keyEl  = document.getElementById('railkey');
+  var map = {};
+  sections.forEach(function(s){
+    var r = s.getAttribute('data-u').split('-');
+    for (var u = +r[1]; u <= +r[0]; u++) map[u] = s;
+  });
+
+  var buttons = [];
+  for (var u = 42; u >= 1; u--){
+    var sec = map[u];
+    var el = document.createElement(sec ? 'button' : 'div');
+    el.className = 'u' + (sec ? ' filled' : '');
+    el.style.animationDelay = ((42 - u) * 12 + 120) + 'ms';
+    var num = (u < 10 ? '0' : '') + u;
+    el.innerHTML = '<span class="n">' + num + '</span><span class="bar"></span>';
+    if (sec){
+      el.type = 'button';
+      el.setAttribute('aria-label', 'Go to ' + sec.getAttribute('data-name'));
+      el.setAttribute('data-target', sec.id);
+      (function(s, b){
+        b.addEventListener('click', function(){
+          s.scrollIntoView({behavior: reduce ? 'auto' : 'smooth', block: 'start'});
+        });
+        function show(){ keyEl.textContent = s.getAttribute('data-name'); keyEl.classList.add('show'); }
+        function hide(){ keyEl.classList.remove('show'); }
+        b.addEventListener('mouseenter', show);
+        b.addEventListener('focus', show);
+        b.addEventListener('mouseleave', hide);
+        b.addEventListener('blur', hide);
+      })(sec, el);
+      buttons.push(el);
+    }
+    railEl.appendChild(el);
+  }
+
+  /* ---------- light the section currently in view ---------- */
+  function syncRail(){
+    var top = null;
+    sections.forEach(function(s){
+      var r = s.getBoundingClientRect();
+      if (r.top <= window.innerHeight * 0.4 && r.bottom > 60) top = s;
+    });
+    buttons.forEach(function(b){
+      b.classList.toggle('on', !!top && b.getAttribute('data-target') === top.id);
+    });
+  }
+
+  if ('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if (e.isIntersecting) e.target.classList.add('live'); });
+    }, {rootMargin: '0px 0px -25% 0px', threshold: 0.08});
+    sections.forEach(function(s){ io.observe(s); });
+  } else {
+    sections.forEach(function(s){ s.classList.add('live'); });
+  }
+
+  /* ---------- reference contact, assembled on click ---------- */
+  var revealBtn = document.getElementById('revealRef');
+  if (revealBtn){
+    // EDIT: split so the address is not sitting in the HTML as plain text
+    var refUser = 'kimyoung';   // EDIT
+    var refHost = 'tesla.com';          // EDIT
+    var refTel  = '425-293-6432';         // EDIT
+    var box = document.getElementById('refContact');
+    function fillRef(){
+      var mail = refUser + '@' + refHost;
+      box.innerHTML =
+        '<a href="mailto:' + mail + '">' + mail + '</a>' +
+        '<a href="tel:+1' + refTel.replace(/-/g, '') + '">' + refTel + '</a>';
+    }
+    revealBtn.addEventListener('click', function(){
+      fillRef();
+      box.hidden = false;
+      revealBtn.hidden = true;
+    });
+    // printing should always show them
+    window.addEventListener('beforeprint', function(){ fillRef(); box.hidden = false; });
+  }
+
+  /* ---------- thermal gauge: scroll depth = cold aisle to hot aisle ---------- */
+  var marker = document.getElementById('marker');
+  var temp   = document.getElementById('temp');
+  var ticking = false;
+
+  function onScroll(){
+    var max = document.documentElement.scrollHeight - window.innerHeight;
+    var p = max > 0 ? Math.min(1, Math.max(0, window.pageYOffset / max)) : 0;
+    marker.style.top = (p * 178) + 'px';
+    temp.textContent = Math.round(64 + p * 25) + '\u00B0F';
+    syncRail();
+    ticking = false;
+  }
+  window.addEventListener('scroll', function(){
+    if (!ticking){ ticking = true; requestAnimationFrame(onScroll); }
+  }, {passive:true});
+  window.addEventListener('resize', onScroll);
+  onScroll();
+
+  /* ---------- airflow: cool intake drifting down, warming as it falls ---------- */
+  if (reduce) return;
+  var cv = document.getElementById('airflow');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d');
+  var w, h, dpr, parts = [], raf = null;
+
+  function size(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = window.innerWidth; h = window.innerHeight;
+    cv.width = w * dpr; cv.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function seed(){
+    var count = Math.round(Math.min(70, w / 16));
+    parts = [];
+    for (var i = 0; i < count; i++){
+      parts.push({
+        x: Math.random() * w,
+        y: Math.random() * h,
+        v: 0.16 + Math.random() * 0.42,
+        r: 0.7 + Math.random() * 1.5,
+        a: Math.random() * Math.PI * 2,
+        s: 0.004 + Math.random() * 0.010,
+        d: 6 + Math.random() * 22
+      });
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0, 0, w, h);
+    for (var i = 0; i < parts.length; i++){
+      var p = parts[i];
+      p.y += p.v;
+      p.a += p.s;
+      if (p.y > h + 12){ p.y = -12; p.x = Math.random() * w; }
+      var x = p.x + Math.sin(p.a) * p.d;
+      var t = p.y / h;
+      var cr = Math.round(108 + t * 92);
+      var cg = Math.round(156 - t * 29);
+      var cb = Math.round(190 - t * 114);
+      var rgb = cr + ',' + cg + ',' + cb;
+      ctx.beginPath();
+      ctx.arc(x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + rgb + ',' + (0.16 + t * 0.10).toFixed(3) + ')';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x, p.y);
+      ctx.lineTo(x - Math.sin(p.a) * 1.4, p.y - p.v * 16);
+      ctx.strokeStyle = 'rgba(' + rgb + ',0.06)';
+      ctx.lineWidth = p.r * 0.85;
+      ctx.stroke();
+    }
+    raf = requestAnimationFrame(draw);
+  }
+
+  function start(){ if (!raf) raf = requestAnimationFrame(draw); }
+  function stop(){ if (raf){ cancelAnimationFrame(raf); raf = null; } }
+
+  size(); seed(); start();
+
+  var rt;
+  window.addEventListener('resize', function(){
+    clearTimeout(rt);
+    rt = setTimeout(function(){ size(); seed(); }, 180);
+  });
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden) stop(); else start();
+  });
+})();
+</script>
+
+</body>
+</html>
